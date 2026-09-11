@@ -48,3 +48,6 @@ Storage key: `trade-desk-v1`
 ## Disclaimer
 
 Demo / sample data only. Not legal or tax advice. Trade Desk does **not** send WhatsApp, file VAT, or move money for you.
+
+## Update 2026-09-11
+Platform bar 2026-09-11: Science Desk job-margin tips, elderly UI, location+purpose onboarding.

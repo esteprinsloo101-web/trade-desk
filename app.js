@@ -5,7 +5,92 @@
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "trade-desk-v1";
+  const STORAGE_KEY = "trade-desk-v4";
+
+  /* PLATFORM_BAR_2026_09_11 */
+  const SCIENCE_TIPS = [
+  {
+    "h": "Deposit-before-parts",
+    "body": "This week: no parts buy until deposit logged. Count cancelled vs completed jobs.",
+    "method": "Method: rule experiment \u00b7 Limit: emergency call-outs differ"
+  },
+  {
+    "h": "Quote speed",
+    "body": "Time from lead to sent quote for 5 jobs. Cut one delay step.",
+    "method": "Method: stopwatch sample \u00b7 Limit: complex jobs skew"
+  },
+  {
+    "h": "Reorder point check",
+    "body": "Raise reorder on your top 2 stockouts by +2 units for a fortnight.",
+    "method": "Method: buffer tweak \u00b7 Limit: cash tied in stock"
+  }
+];
+  const PURPOSE_MODULE_PRESETS = {
+  "trade": {
+    "jobs": true,
+    "money": true,
+    "quotes": true,
+    "customers": true,
+    "stock": true,
+    "contacts": true,
+    "science": true
+  },
+  "household": {
+    "jobs": false,
+    "money": true,
+    "quotes": false,
+    "customers": false,
+    "stock": false,
+    "contacts": true,
+    "science": true
+  },
+  "farm": {
+    "jobs": true,
+    "money": true,
+    "quotes": true,
+    "customers": true,
+    "stock": true,
+    "contacts": true,
+    "science": true
+  },
+  "rentals": {
+    "jobs": true,
+    "money": true,
+    "quotes": true,
+    "customers": true,
+    "stock": false,
+    "contacts": true,
+    "science": true
+  },
+  "stokvel": {
+    "jobs": false,
+    "money": true,
+    "quotes": false,
+    "customers": false,
+    "stock": false,
+    "contacts": true,
+    "science": true
+  },
+  "flood": {
+    "jobs": false,
+    "money": false,
+    "quotes": false,
+    "customers": false,
+    "stock": false,
+    "contacts": true,
+    "science": true
+  },
+  "decisions": {
+    "jobs": true,
+    "money": true,
+    "quotes": true,
+    "customers": true,
+    "stock": false,
+    "contacts": false,
+    "science": true
+  }
+};
+
   const TZ = "Africa/Johannesburg";
 
   const STAGES = ["Lead", "Quoted", "Deposit", "Doing", "Done", "Paid"];
@@ -92,12 +177,14 @@
     customers: true,
     stock: true,
     contacts: true,
+    science: true,
   };
 
   function seed() {
     const today = startOfDay(new Date());
     return {
       modules: { ...DEFAULT_MODULES },
+      profile: { onboarded: false, city: "", purpose: "", updatedAt: null },
       business: { name: "Mokoena Plumbing", city: "Bloemfontein", owner: "Thabo Mokoena" },
       customers: [
         { id: "c1", name: "Prinsloo Household", phone: "082 111 2200", suburb: "Universitas", jobs: 4 },
@@ -230,6 +317,7 @@
       if (!raw) return seed();
       const data = JSON.parse(raw);
       data.modules = { ...DEFAULT_MODULES, ...(data.modules || {}) };
+      if (!data.profile) data.profile = { onboarded: false, city: "", purpose: "", updatedAt: null };
       if (!Array.isArray(data.processes) || !data.processes.length) data.processes = seedProcesses(startOfDay(new Date()));
       if (!Array.isArray(data.history)) data.history = [];
       if (!data.jobsFilter) data.jobsFilter = "all";
@@ -431,6 +519,7 @@
       { id: "customers", mod: "customers", icon: "👥", title: "Customers", meta: "Leads · repeats" },
       { id: "stock", mod: "stock", icon: "📦", title: "Stock / parts", meta: "Reorder points" },
       { id: "contacts", mod: "contacts", icon: "☎", title: "Contacts", meta: "Suppliers · helpers" },
+      { id: "science", mod: "science", icon: "🔬", title: "Science Desk", meta: "Weekly tips · methods" },
       { id: "settings", mod: null, icon: "⚙", title: "Settings", meta: "Modules · processes" },
     ];
     $("#more-grid").innerHTML = items.filter((i) => !i.mod || state.modules[i.mod]).map((i) => `
@@ -493,9 +582,25 @@
   }
 
   function renderSettings() {
+    const settingsView = document.getElementById("view-settings");
+    if (settingsView && !document.getElementById("profile-card")) {
+      const card = document.createElement("div");
+      card.className = "card mb-12";
+      card.id = "profile-card";
+      card.innerHTML = '<div class="card-head"><h3>Location &amp; purpose</h3><span class="badge teal">adapt</span></div><p id="profile-summary" style="font-size:15px;color:var(--text-dim);margin-bottom:10px"></p><button type="button" class="btn btn-ghost btn-block" id="btn-redo-onboard">Change city / purpose</button>';
+      const first = settingsView.querySelector(".card, .toggle-list, #module-toggles");
+      if (first) {
+        const wrap = first.closest(".card") || first;
+        settingsView.insertBefore(card, wrap);
+      } else settingsView.insertBefore(card, settingsView.firstChild);
+      document.getElementById("btn-redo-onboard").addEventListener("click", function () { state.profile.onboarded = false; save(); showOnboarding(); });
+    }
+    const ps = document.getElementById("profile-summary");
+    if (ps && state.profile) ps.textContent = (state.profile.city || "—") + " · " + (state.profile.purpose || "—");
+
     const labels = {
       jobs: "Jobs pipeline", money: "Money / day cash", quotes: "Quotes",
-      customers: "Customers", stock: "Stock / parts", contacts: "Contacts",
+      customers: "Customers", stock: "Stock / parts", contacts: "Contacts", science: "Science Desk"
     };
     $("#module-toggles").innerHTML = Object.keys(DEFAULT_MODULES).map((k) => `
       <label class="toggle-row">
@@ -519,6 +624,7 @@
 
   function render() {
     renderNavVisibility();
+    if (currentView === "science") renderScience();
     renderToday();
     if (state.modules.jobs) renderJobs();
     if (state.modules.money) renderMoney();
@@ -529,6 +635,71 @@
     if (state.modules.contacts) renderContacts();
     renderSettings();
   }
+
+  
+  /* PLATFORM_BAR_2026_09_11 helpers */
+  function renderScience() {
+    const root = document.getElementById("science-tips");
+    if (!root) return;
+    root.innerHTML = SCIENCE_TIPS.map((t) =>
+      '<div class="science-tip"><h4>' + esc(t.h) + '</h4><p>' + esc(t.body) + '</p><div class="method">' + esc(t.method) + '</div></div>'
+    ).join("");
+  }
+
+  function applyPurposeModules(purpose) {
+    const preset = PURPOSE_MODULE_PRESETS[purpose];
+    if (!preset || !state.modules) return;
+    Object.keys(state.modules).forEach((k) => {
+      if (Object.prototype.hasOwnProperty.call(preset, k)) state.modules[k] = !!preset[k];
+    });
+  }
+
+  function updateBrandLocation() {
+    const sub = document.querySelector(".brand-text p");
+    if (!sub || !state.profile) return;
+    const city = state.profile.city || "";
+    const purpose = state.profile.purpose || "";
+    if (city || purpose) sub.textContent = [city, purpose].filter(Boolean).join(" · ");
+  }
+
+  function showOnboarding() {
+    const el = document.getElementById("onboard");
+    if (!el) return;
+    const city = document.getElementById("ob-city");
+    const purpose = document.getElementById("ob-purpose");
+    if (city && state.profile) city.value = state.profile.city || "Bloemfontein";
+    if (purpose && state.profile) purpose.value = state.profile.purpose || "trade";
+    el.classList.add("open");
+    el.setAttribute("aria-hidden", "false");
+  }
+
+  function hideOnboarding() {
+    const el = document.getElementById("onboard");
+    if (!el) return;
+    el.classList.remove("open");
+    el.setAttribute("aria-hidden", "true");
+  }
+
+  function completeOnboarding() {
+    const city = (document.getElementById("ob-city") && document.getElementById("ob-city").value || "").trim();
+    const purpose = (document.getElementById("ob-purpose") && document.getElementById("ob-purpose").value) || "";
+    if (!city) { toast("Enter your city / region"); return; }
+    if (!purpose) { toast("Choose what you run"); return; }
+    state.profile = { onboarded: true, city: city, purpose: purpose, updatedAt: new Date().toISOString() };
+    applyPurposeModules(purpose);
+    save();
+    hideOnboarding();
+    updateBrandLocation();
+    render();
+    toast("Saved · modules adapted");
+  }
+
+  function maybeOnboard() {
+    if (!state.profile) state.profile = { onboarded: false, city: "", purpose: "", updatedAt: null };
+    if (!state.profile.onboarded) showOnboarding();
+    else updateBrandLocation();
+  }
+
 
   /* ── ProcessRunner ── */
   let prState = null;
@@ -842,5 +1013,7 @@
   $("#btn-add-process")?.addEventListener("click", () => openAddProcessModal());
   $("#btn-add-process-today")?.addEventListener("click", () => openAddProcessModal());
 
+  document.getElementById("ob-save") && document.getElementById("ob-save").addEventListener("click", completeOnboarding);
+  maybeOnboard();
   render();
 })();
