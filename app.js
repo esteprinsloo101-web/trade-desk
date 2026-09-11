@@ -1,6 +1,6 @@
 /* Trade Desk — static SA trade job pipeline demo
    Mokoena Plumbing · Bloemfontein · localStorage · ZAR
-   Not legal or tax advice */
+   NOT financial, legal or tax advice · You Approve irreversible money steps */
 
 (function () {
   "use strict";
@@ -101,11 +101,12 @@
       icon: "📝",
       defaultCadenceDays: 0,
       leadDays: 3,
-      disclaimer: "Not a binding quote. Confirm price yourself before sending.",
+      disclaimer: "NOT a binding quote or contract. Confirm price yourself before sending. Not financial or legal advice.",
       steps: [
         { key: "scope", title: "Confirm scope", body: "Check customer request, site access and materials needed.", checks: ["Scope clear enough to price"] },
         { key: "price", title: "Set price (ZAR)", body: "Enter your labour + parts estimate. App does not invent pricing.", input: "amount" },
         { key: "send", title: "Send quote", body: "Open WhatsApp / email link and send yourself. Mark when sent.", checks: ["Quote sent to customer"] },
+        { key: "confirm", title: "Lock Quoted stage", body: "Advances pipeline to Quoted · unlocks deposit chase when accepted.", checks: ["Job marked Quoted · deposit next"] },
       ],
     },
     deposit_chase: {
@@ -113,11 +114,12 @@
       icon: "💸",
       defaultCadenceDays: 3,
       leadDays: 2,
-      disclaimer: "You Approve the chase tone. App does not auto-message without you.",
+      disclaimer: "NOT financial advice. You Approve logging deposit as received — irreversible in demo books. App does not move money.",
       steps: [
         { key: "review", title: "Review deposit due", body: "Confirm deposit amount and days outstanding." },
-        { key: "chase", title: "Send chase", body: "Open payment / WhatsApp link. Keep tone polite.", checks: ["Chase sent"] },
-        { key: "confirm", title: "Log outcome", body: "Mark if paid or still waiting.", checks: ["Logged for follow-up"] },
+        { key: "chase", title: "Send chase", body: "Open payment / WhatsApp link yourself. Keep tone polite.", checks: ["Chase sent (by me)"] },
+        { key: "approve", title: "Approve log deposit", body: "Irreversible money step: Approve logging this deposit as received in day cash. App does not take payment.", checks: ["I Approve logging this deposit (irreversible in demo books)"] },
+        { key: "confirm", title: "Confirm logged", body: "Deposit marked paid · job can move to Doing / job-day run.", checks: ["Deposit logged · pipeline advanced"] },
       ],
     },
     job_day: {
@@ -125,12 +127,12 @@
       icon: "🔧",
       defaultCadenceDays: 0,
       leadDays: 1,
-      disclaimer: "Photo notes are ops evidence stubs — not insurance claims.",
+      disclaimer: "Photo notes are ops evidence stubs — not insurance claims. Not legal advice.",
       steps: [
         { key: "before", title: "Before photos", body: "Capture before state (demo: tick slots).", checks: ["Before — overview", "Before — fault detail"] },
         { key: "work", title: "Do the work", body: "Complete the job. Note parts used.", input: "note" },
         { key: "after", title: "After photos", body: "Capture after state.", checks: ["After — overview", "After — close-up"] },
-        { key: "confirm", title: "Mark job done", body: "Ready for invoice step.", checks: ["Customer signed off / work complete"] },
+        { key: "confirm", title: "Mark job done", body: "Ready for invoice ProcessRunner.", checks: ["Customer signed off / work complete", "Ready to open invoice wizard"] },
       ],
     },
     invoice: {
@@ -138,11 +140,12 @@
       icon: "🧾",
       defaultCadenceDays: 0,
       leadDays: 2,
-      disclaimer: "Not tax advice. Confirm VAT fields if you are a vendor.",
+      disclaimer: "NOT financial or tax advice. Confirm VAT yourself. You Approve issue — app does not file or move money.",
       steps: [
         { key: "review", title: "Review totals", body: "Confirm labour, parts and deposit already paid." },
-        { key: "send", title: "Send invoice", body: "Open bank / PayFast / WhatsApp payment note and send yourself.", checks: ["Invoice sent"] },
-        { key: "confirm", title: "Confirm issued", body: "Mark invoice as issued in the pipeline.", checks: ["Invoice logged"] },
+        { key: "send", title: "Send invoice", body: "Open bank / PayFast / WhatsApp payment note and send yourself.", checks: ["Invoice message prepared / sent by me"] },
+        { key: "approve", title: "Approve issue", body: "Irreversible money step: Approve marking this invoice issued in books.", checks: ["I Approve issuing this invoice (demo books)"] },
+        { key: "confirm", title: "Confirm issued", body: "Invoice logged · chase balance or mark paid when customer settles.", checks: ["Invoice logged in pipeline"] },
       ],
     },
     stock_reorder: {
@@ -231,6 +234,8 @@
       processes: seedProcesses(today),
       history: [],
       jobsFilter: "all",
+      prefs: defaultPrefs(),
+      pipeline: { quoteDone: false, depositDone: false, jobDone: false, invoiceDone: false },
     };
   }
 
@@ -311,6 +316,16 @@
     return c ? c.name : "—";
   }
 
+  function defaultPrefs() {
+    return {
+      quietStart: 21,
+      quietEnd: 7,
+      notificationsEnabled: true,
+      lastNotified: {},
+      installDismissed: false,
+    };
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -321,10 +336,16 @@
       if (!Array.isArray(data.processes) || !data.processes.length) data.processes = seedProcesses(startOfDay(new Date()));
       if (!Array.isArray(data.history)) data.history = [];
       if (!data.jobsFilter) data.jobsFilter = "all";
+      data.prefs = Object.assign(defaultPrefs(), data.prefs || {});
+      if (!data.pipeline) data.pipeline = { quoteDone: false, depositDone: false, jobDone: false, invoiceDone: false };
       return data;
     } catch { return seed(); }
   }
   function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  function getPrefs() {
+    if (!state.prefs) state.prefs = defaultPrefs();
+    return state.prefs;
+  }
 
   let state = load();
   let currentView = "today";
@@ -353,17 +374,282 @@
     items.sort((a,b) => a.due - b.due || a.title.localeCompare(b.title));
     return items;
   }
+  function inQuietHours(date) {
+    const prefs = getPrefs();
+    const h = (date || new Date()).getHours();
+    const start = Number(prefs.quietStart);
+    const end = Number(prefs.quietEnd);
+    if (Number.isNaN(start) || Number.isNaN(end)) return false;
+    if (start === end) return false;
+    if (start < end) return h >= start && h < end;
+    return h >= start || h < end;
+  }
+
+  function nextOutsideQuiet(from) {
+    const d = new Date(from || Date.now());
+    let guard = 0;
+    while (inQuietHours(d) && guard < 48) {
+      d.setMinutes(0, 0, 0);
+      d.setHours(d.getHours() + 1);
+      guard++;
+    }
+    return d;
+  }
+
+  function notifPermission() {
+    if (!("Notification" in window)) return "unsupported";
+    return Notification.permission;
+  }
+
+  function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+      toast("Notifications not supported here");
+      return Promise.resolve("unsupported");
+    }
+    if (Notification.permission === "granted") return Promise.resolve("granted");
+    if (Notification.permission === "denied") {
+      toast("Notifications blocked — enable in browser settings if you want alerts");
+      return Promise.resolve("denied");
+    }
+    return Notification.requestPermission()
+      .then(function (p) {
+        if (p === "granted") toast("Notifications on");
+        else if (p === "denied") toast("Notifications denied — in-app reminders still work");
+        else toast("Notifications not enabled");
+        render();
+        return p;
+      })
+      .catch(function () {
+        toast("Could not request notifications");
+        return "denied";
+      });
+  }
+
+  function fireDueNotification(item) {
+    const prefs = getPrefs();
+    if (!prefs.notificationsEnabled) return;
+    if (notifPermission() !== "granted") return;
+    if (inQuietHours(new Date())) return;
+    const key = item.processId || item.id;
+    const today = isoDate(new Date());
+    if (prefs.lastNotified[key] === today) return;
+    try {
+      const n = new Notification("Trade Desk · due", {
+        body: item.title + (item.due < 0 ? " (overdue)" : item.due === 0 ? " (today)" : " · in " + item.due + "d"),
+        tag: "trade-desk-" + key,
+        icon: "icons/icon-192.png",
+      });
+      prefs.lastNotified[key] = today;
+      save();
+      n.onclick = function () {
+        window.focus();
+        if (item.processId) openProcessRunner(item.processId);
+        n.close();
+      };
+    } catch (e) {
+      /* graceful */
+    }
+  }
+
+  function checkDueNotifications() {
+    const prefs = getPrefs();
+    if (!prefs.notificationsEnabled) return;
+    if (notifPermission() !== "granted") return;
+    if (inQuietHours(new Date())) return;
+    buildQueue()
+      .filter(function (item) { return item.due <= 0; })
+      .slice(0, 3)
+      .forEach(fireDueNotification);
+  }
+
+  var reminderTimers = {};
+
+  function clearReminderTimer(processId) {
+    if (reminderTimers[processId]) {
+      clearTimeout(reminderTimers[processId]);
+      delete reminderTimers[processId];
+    }
+  }
+
+  function scheduleReminderForProcess(proc) {
+    if (!proc || !proc.nextDue) return;
+    clearReminderTimer(proc.id);
+    const prefs = getPrefs();
+    if (!prefs.notificationsEnabled) return;
+    if (notifPermission() !== "granted") return;
+
+    const dueDay = startOfDay(parseISO(proc.nextDue));
+    const lead = proc.leadDays != null ? proc.leadDays : (PROCESS_TYPES[proc.type] || PROCESS_TYPES.custom).leadDays;
+    let fireAt = addDays(dueDay, -Math.min(lead, 1));
+    fireAt.setHours(8, 0, 0, 0);
+    fireAt = nextOutsideQuiet(fireAt);
+    const delay = fireAt.getTime() - Date.now();
+    if (delay <= 0) {
+      const soon = nextOutsideQuiet(new Date(Date.now() + 1500));
+      const d2 = soon.getTime() - Date.now();
+      if (d2 < 86400000) {
+        reminderTimers[proc.id] = setTimeout(function () {
+          fireDueNotification({
+            processId: proc.id,
+            id: proc.id,
+            title: proc.title,
+            due: processDue(proc),
+          });
+        }, Math.max(500, d2));
+      }
+      return;
+    }
+    if (delay > 2147483647) return;
+    reminderTimers[proc.id] = setTimeout(function () {
+      fireDueNotification({
+        processId: proc.id,
+        id: proc.id,
+        title: proc.title,
+        due: processDue(proc),
+      });
+    }, delay);
+  }
+
+  function rescheduleAllReminders() {
+    (state.processes || []).forEach(scheduleReminderForProcess);
+  }
+
   function buildReminders() {
-    const q = buildQueue().slice(0, 5);
+    const q = buildQueue().slice(0, 8);
     const base = new Date();
-    return q.map((item, i) => {
-      const fire = new Date(base);
-      fire.setHours(7 + i, i === 0 ? 0 : 30, 0, 0);
-      if (fire < base) fire.setDate(fire.getDate() + 1);
-      const time = fire.toLocaleTimeString("en-ZA", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
-      const day = fire.toLocaleDateString("en-ZA", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
-      return { when: day + " · " + time, title: item.title, src: item.module };
+    const quietNow = inQuietHours(base);
+    return q.map(function (item, i) {
+      let fire = new Date(base);
+      fire.setMinutes(0, 0, 0);
+      if (item.due <= 0) {
+        fire = nextOutsideQuiet(new Date(base.getTime() + (quietNow ? 0 : 60 * 1000)));
+      } else {
+        fire = addDays(startOfDay(base), Math.max(0, item.due));
+        fire.setHours(8 + (i % 3), i % 2 === 0 ? 0 : 30, 0, 0);
+        fire = nextOutsideQuiet(fire);
+      }
+      const time = fire.toLocaleTimeString("en-ZA", {
+        timeZone: TZ,
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const day = fire.toLocaleDateString("en-ZA", {
+        timeZone: TZ,
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+      return {
+        when: day + " · " + time,
+        title: item.title,
+        src: item.module + (quietNow && item.due <= 0 ? " · quiet hours" : ""),
+        processId: item.processId,
+        due: item.due,
+        quietShifted: quietNow && item.due <= 0,
+      };
     });
+  }
+
+  function syncPipelineFromJobs() {
+    const jobs = state.jobs || [];
+    const open = jobs.filter((j) => j.stage !== "Paid");
+    const any = open.length ? open : jobs;
+    const quoteDone = any.some((j) => ["Quoted", "Deposit", "Doing", "Done", "Paid"].includes(j.stage));
+    const depositDone = any.some((j) => j.depositPaid || ["Doing", "Done", "Paid"].includes(j.stage));
+    const jobDone = any.some((j) => ["Done", "Paid"].includes(j.stage));
+    const invoiceDone = (state.invoices || []).some((i) => i.status === "unpaid" || i.status === "paid") && jobDone;
+    const prev = state.pipeline || {};
+    state.pipeline = {
+      quoteDone: !!(prev.quoteDone || quoteDone),
+      depositDone: !!(prev.depositDone || depositDone),
+      jobDone: !!(prev.jobDone || jobDone),
+      invoiceDone: !!(prev.invoiceDone || invoiceDone),
+    };
+    return state.pipeline;
+  }
+
+  function loopStatus() {
+    return syncPipelineFromJobs();
+  }
+
+  function renderLoopTrack(el) {
+    if (!el) return;
+    const L = loopStatus();
+    const steps = [
+      { key: "quote", label: "Quote", done: L.quoteDone, blocked: false, open: !L.quoteDone },
+      { key: "deposit", label: "Deposit", done: L.depositDone, blocked: !L.quoteDone && !L.depositDone, open: L.quoteDone && !L.depositDone },
+      { key: "job", label: "Job day", done: L.jobDone, blocked: !L.depositDone && !L.jobDone, open: L.depositDone && !L.jobDone },
+      { key: "invoice", label: "Invoice", done: L.invoiceDone, blocked: !L.jobDone && !L.invoiceDone, open: L.jobDone && !L.invoiceDone },
+    ];
+    el.innerHTML = steps.map(function (s) {
+      const cls = s.done ? "done" : s.blocked ? "blocked" : s.open ? "open" : "";
+      const stateTxt = s.done ? "Done" : s.blocked ? "Gated" : "Next";
+      return '<div class="loop-step ' + cls + '"><div class="ls-label">' + esc(s.label) + '</div><div class="ls-state">' + stateTxt + '</div></div>';
+    }).join("");
+  }
+
+  function buildDayCashQueue() {
+    const today = isoDate(new Date());
+    const items = [];
+    (state.cashLog || []).filter((k) => k.at === today).forEach((k) => {
+      items.push({
+        kind: "cash",
+        title: k.label,
+        meta: (k.note || "cash") + " · " + (k.amount >= 0 ? "+" : "") + fmtMoney(k.amount),
+        severity: k.amount < 0 ? "amber" : k.amount === 0 ? "teal" : "green",
+        amount: k.amount,
+      });
+    });
+    (state.jobs || []).filter((j) => !j.depositPaid && (j.stage === "Deposit" || j.stage === "Quoted") && daysUntil(j.dueAt) <= 1).forEach((j) => {
+      const proc = (state.processes || []).find((p) => p.type === "deposit_chase" && p.meta && p.meta.jobId === j.id);
+      items.push({
+        kind: "deposit",
+        title: "Deposit due — " + j.title,
+        meta: fmtMoney(j.deposit) + " · " + customerName(j.customerId),
+        severity: daysUntil(j.dueAt) < 0 ? "red" : "amber",
+        processId: proc ? proc.id : null,
+      });
+    });
+    (state.invoices || []).filter((i) => i.status !== "paid" && daysUntil(i.dueAt) <= 2).forEach((i) => {
+      const proc = (state.processes || []).find((p) => p.type === "invoice" && ((p.meta && p.meta.invoiceId === i.id) || (p.meta && p.meta.jobId === i.jobId)));
+      items.push({
+        kind: "invoice",
+        title: i.title,
+        meta: "Outstanding " + fmtMoney(i.amount) + " · due " + fmtDate(i.dueAt),
+        severity: daysUntil(i.dueAt) < 0 ? "red" : "amber",
+        processId: proc ? proc.id : null,
+      });
+    });
+    return items;
+  }
+
+  function ensureFollowOnProcess(fromProc, nextType, title, overrides) {
+    const jobId = fromProc.meta && fromProc.meta.jobId;
+    if (!jobId) return null;
+    let existing = (state.processes || []).find((p) => p.type === nextType && p.meta && p.meta.jobId === jobId);
+    const today = isoDate(new Date());
+    if (existing) {
+      existing.nextDue = today;
+      existing.paused = false;
+      if (title) existing.title = title;
+      Object.assign(existing.meta || (existing.meta = {}), overrides || {});
+      return existing;
+    }
+    const def = PROCESS_TYPES[nextType] || PROCESS_TYPES.custom;
+    const moduleGuess = nextType === "invoice" ? "money" : nextType === "new_quote" ? "quotes" : "jobs";
+    const created = {
+      id: uid("pr"),
+      type: nextType,
+      title: title || (def.label + " · follow-on"),
+      nextDue: today,
+      cadenceDays: def.defaultCadenceDays || 7,
+      leadDays: def.leadDays || 2,
+      module: moduleGuess,
+      accountLinks: (fromProc.accountLinks || []).slice(),
+      meta: Object.assign({ jobId: jobId }, overrides || {}),
+    };
+    state.processes.unshift(created);
+    return created;
   }
 
   function $(sel) { return document.querySelector(sel); }
@@ -425,7 +711,7 @@
     $("#today-count").innerHTML = '<span class="dot"></span> ' + queue.length + " due";
     const todayCash = state.cashLog.filter((k) => k.at === isoDate(new Date()) && k.amount > 0).reduce((s,k) => s + k.amount, 0);
     $("#kpi-cash").textContent = fmtMoney(todayCash);
-    $("#kpi-open").textContent = String(state.jobs.filter((j) => !["Paid","Lead"].includes(j.stage) || j.stage === "Lead").filter((j) => j.stage !== "Paid").length);
+    $("#kpi-open").textContent = String(state.jobs.filter((j) => j.stage !== "Paid").length);
     const root = $("#today-queue");
     if (!queue.length) {
       root.innerHTML = '<div class="empty">Nothing due — all processes ahead of lead window. Add one below.</div>';
@@ -442,13 +728,50 @@
           </div>
         </button>`).join("");
     }
+    renderLoopTrack($("#loop-track"));
+    const dc = $("#day-cash-queue");
+    if (dc) {
+      const dayItems = buildDayCashQueue();
+      if (!dayItems.length) {
+        dc.innerHTML = '<div class="empty">No day-cash items yet — deposits due and today cash log appear here.</div>';
+      } else {
+        dc.innerHTML = dayItems.map((item) => {
+          const tag = item.processId ? ' data-process="' + item.processId + '"' : "";
+          const cls = item.processId ? "row" : "ledger-row";
+          if (item.processId) {
+            return `<button type="button" class="row sev-${item.severity}"${tag}>
+              <div class="row-icon">${item.kind === "invoice" ? "🧾" : "💸"}</div>
+              <div class="row-body"><div class="row-title">${esc(item.title)}</div><div class="row-meta">${esc(item.meta)}</div></div>
+              <div class="row-right"><span class="badge ${item.severity === "red" ? "danger" : "warn"}">run</span></div>
+            </button>`;
+          }
+          return `<div class="ledger-row">
+            <div><strong>${esc(item.title)}</strong><div class="h-meta">${esc(item.meta)}</div></div>
+            <div class="ledger-amt ${item.amount >= 0 ? "pos" : "neg"}">${item.amount >= 0 ? "+" : ""}${fmtMoney(item.amount)}</div>
+          </div>`;
+        }).join("");
+      }
+    }
     const rem = buildReminders();
     const rp = $("#reminder-panel");
-    rp.innerHTML = rem.length ? rem.map((r) => `
-      <div class="reminder-item">
-        <div class="r-time">${esc(r.when)}</div>
-        <div class="r-body">${esc(r.title)}<div class="r-src">${esc(r.src)}</div></div>
-      </div>`).join("") : '<div class="empty">No scheduled reminders</div>';
+    const rb = $("#reminder-badge");
+    if (rb) rb.textContent = rem.length ? rem.length + " queued" : "auto";
+    if (!rem.length) {
+      rp.innerHTML = '<div class="empty">No scheduled reminders</div>';
+    } else {
+      rp.innerHTML = rem.map((r) => `
+        <button type="button" class="reminder-item ${r.due <= 0 ? "due-now" : ""}" ${r.processId ? 'data-process="' + r.processId + '"' : ""}>
+          <div class="r-time">${esc(r.when)}</div>
+          <div class="r-body">${esc(r.title)}<div class="r-src ${r.quietShifted ? "quiet" : ""}">${esc(r.src)}</div></div>
+        </button>`).join("");
+    }
+    const en = $("#btn-enable-notifs");
+    if (en) {
+      const perm = notifPermission();
+      if (perm === "granted" && getPrefs().notificationsEnabled) en.textContent = "Notifications on";
+      else if (perm === "denied") en.textContent = "Notifications blocked — in-app still works";
+      else en.textContent = "Enable notifications";
+    }
     renderHistoryPanel($("#history-panel"), 5);
   }
 
@@ -520,7 +843,7 @@
       { id: "stock", mod: "stock", icon: "📦", title: "Stock / parts", meta: "Reorder points" },
       { id: "contacts", mod: "contacts", icon: "☎", title: "Contacts", meta: "Suppliers · helpers" },
       { id: "science", mod: "science", icon: "🔬", title: "Science Desk", meta: "Weekly tips · methods" },
-      { id: "settings", mod: null, icon: "⚙", title: "Settings", meta: "Modules · processes" },
+      { id: "settings", mod: null, icon: "⚙", title: "Settings", meta: "Modules · reminders · backup" },
     ];
     $("#more-grid").innerHTML = items.filter((i) => !i.mod || state.modules[i.mod]).map((i) => `
       <button type="button" class="more-item" data-nav="${i.id}">
@@ -620,6 +943,18 @@
         </button>`;
     }).join("") || '<div class="empty">No processes</div>';
     renderHistoryPanel($("#history-list-full"), 20);
+    const prefs = getPrefs();
+    const qs = $("#quiet-start");
+    const qe = $("#quiet-end");
+    const pn = $("#pref-notifs");
+    const ns = $("#notif-status");
+    if (qs && document.activeElement !== qs) qs.value = String(prefs.quietStart);
+    if (qe && document.activeElement !== qe) qe.value = String(prefs.quietEnd);
+    if (pn) pn.checked = !!prefs.notificationsEnabled;
+    if (ns) {
+      const perm = notifPermission();
+      ns.textContent = "Permission: " + perm + (inQuietHours(new Date()) ? " · currently in quiet hours" : " · outside quiet hours");
+    }
   }
 
   function render() {
@@ -752,7 +1087,7 @@
         <div class="pr-title">${esc(proc.title)}</div>
         <div class="pr-meta">${esc(def.label)} · due ${fmtDate(proc.nextDue)} · cadence every ${proc.cadenceDays || "—"} days</div>
         <div class="pr-card"><h4>What happens</h4>
-          <p>Guided process (${def.steps.length} steps). On complete you confirm next due — item returns to Today when due approaches.</p>
+          <p>Guided process (${def.steps.length} steps). Quote → deposit → job → invoice. On complete you confirm next due — returns to Today when due approaches. <strong>Approve</strong> irreversible money steps yourself.</p>
           <p style="margin-top:8px;font-size:12px;color:var(--muted)">${esc(def.disclaimer || "")}</p>
         </div>
         ${renderAccountLinks(proc)}
@@ -762,7 +1097,7 @@
     } else if (phase.startsWith("step:")) {
       const si = Number(phase.split(":")[1]);
       const step = def.steps[si];
-      const showLinks = ["send", "chase", "order", "account"].includes(step.key) || si === 1;
+      const showLinks = ["send", "chase", "order", "account", "approve"].includes(step.key) || si === 1;
       html = `
         <div class="pr-phase-label">Step ${si + 1} of ${def.steps.length}</div>
         <div class="pr-title">${esc(step.title)}</div>
@@ -855,32 +1190,76 @@
     proc.nextDue = nextDue;
     proc.cadenceDays = cadence;
     proc.lastCompletedAt = isoDate(new Date());
+    if (!state.pipeline) state.pipeline = { quoteDone: false, depositDone: false, jobDone: false, invoiceDone: false };
 
     if (proc.type === "new_quote" && proc.meta && proc.meta.jobId) {
       const job = state.jobs.find((j) => j.id === proc.meta.jobId);
+      const amt = prState.answers.amount ? Number(prState.answers.amount) : null;
       if (job) {
         job.stage = "Quoted";
-        if (prState.answers.amount) job.amount = Number(prState.answers.amount) || job.amount;
+        if (amt) job.amount = amt || job.amount;
+        if (!job.deposit) job.deposit = Math.round((job.amount || 0) * 0.3);
       }
-      const q = state.quotes.find((x) => x.jobId === proc.meta.jobId);
-      if (q) { q.status = "sent"; q.sentAt = isoDate(new Date()); if (prState.answers.amount) q.amount = Number(prState.answers.amount); }
+      let q = state.quotes.find((x) => x.jobId === proc.meta.jobId);
+      if (q) {
+        q.status = "sent";
+        q.sentAt = isoDate(new Date());
+        if (amt) q.amount = amt;
+      } else {
+        state.quotes.unshift({
+          id: uid("q"), jobId: proc.meta.jobId,
+          title: (job ? job.title : proc.title) + " quote",
+          amount: amt || (job && job.amount) || 0,
+          status: "sent", sentAt: isoDate(new Date()),
+        });
+      }
+      state.pipeline.quoteDone = true;
+      ensureFollowOnProcess(proc, "deposit_chase", "Chase deposit — " + (job ? job.title : proc.title), {
+        amount: job ? job.deposit : (proc.meta.amount || 0),
+      });
     }
     if (proc.type === "deposit_chase" && proc.meta && proc.meta.jobId) {
       const job = state.jobs.find((j) => j.id === proc.meta.jobId);
       if (job) {
         job.depositPaid = true;
-        if (job.stage === "Deposit" || job.stage === "Quoted") job.stage = "Doing";
-        state.cashLog.unshift({ id: uid("k"), at: isoDate(new Date()), label: "Deposit — " + job.title, amount: job.deposit, note: "deposit" });
+        if (job.stage === "Deposit" || job.stage === "Quoted" || job.stage === "Lead") job.stage = "Doing";
+        state.cashLog.unshift({
+          id: uid("k"), at: isoDate(new Date()),
+          label: "Deposit — " + job.title,
+          amount: job.deposit || Number(proc.meta.amount) || 0,
+          note: "deposit · Approved",
+        });
       }
+      state.pipeline.depositDone = true;
+      ensureFollowOnProcess(proc, "job_day", "Job day — " + (job ? job.title : proc.title), {});
     }
     if (proc.type === "job_day" && proc.meta && proc.meta.jobId) {
       const job = state.jobs.find((j) => j.id === proc.meta.jobId);
       if (job) job.stage = "Done";
+      state.pipeline.jobDone = true;
+      const invTitle = "Invoice — " + (job ? job.title : proc.title);
+      const follow = ensureFollowOnProcess(proc, "invoice", invTitle, {
+        amount: job ? job.amount : (proc.meta.amount || 0),
+      });
+      if (job && follow) {
+        let inv = state.invoices.find((i) => i.jobId === job.id);
+        if (!inv) {
+          inv = {
+            id: uid("i"), jobId: job.id, title: job.title + " — INV",
+            amount: Math.max(0, (job.amount || 0) - (job.depositPaid ? job.deposit : 0)),
+            status: "draft", dueAt: isoDate(addDays(new Date(), 7)),
+          };
+          state.invoices.unshift(inv);
+        }
+        follow.meta.invoiceId = inv.id;
+      }
     }
     if (proc.type === "invoice" && proc.meta) {
       if (proc.meta.jobId) {
         const job = state.jobs.find((j) => j.id === proc.meta.jobId);
-        if (job && job.stage === "Done") job.stage = "Done";
+        if (job && (job.stage === "Done" || job.stage === "Doing")) {
+          /* stay Done until paid; invoice issued */
+        }
       }
       if (proc.meta.invoiceId) {
         const inv = state.invoices.find((i) => i.id === proc.meta.invoiceId);
@@ -888,9 +1267,17 @@
       } else if (proc.meta.jobId) {
         const job = state.jobs.find((j) => j.id === proc.meta.jobId);
         if (job && !state.invoices.find((i) => i.jobId === job.id)) {
-          state.invoices.unshift({ id: uid("i"), jobId: job.id, title: job.title + " — INV", amount: job.amount, status: "unpaid", dueAt: nextDue });
+          state.invoices.unshift({
+            id: uid("i"), jobId: job.id, title: job.title + " — INV",
+            amount: Math.max(0, (job.amount || 0) - (job.depositPaid ? job.deposit : 0)),
+            status: "unpaid", dueAt: nextDue,
+          });
+        } else if (job) {
+          const inv = state.invoices.find((i) => i.jobId === job.id);
+          if (inv && inv.status === "draft") inv.status = "unpaid";
         }
       }
+      state.pipeline.invoiceDone = true;
     }
     if (proc.type === "stock_reorder") {
       state.stock.forEach((s) => { if (s.qty <= s.reorderAt) s.qty = s.reorderAt + 4; });
@@ -899,7 +1286,9 @@
     state.history = state.history || [];
     state.history.unshift({ id: uid("h"), processId: proc.id, title: proc.title, type: proc.type, completedAt: isoDate(new Date()), nextDueSet: nextDue, note });
     if (state.history.length > 50) state.history.length = 50;
+    syncPipelineFromJobs();
     save();
+    scheduleReminderForProcess(proc);
     closeProcessRunner();
     render();
     toast("Done · next due " + fmtDate(nextDue));
@@ -967,9 +1356,12 @@
 
   function resetDemo() {
     if (!confirm("Reset all Trade Desk demo data?")) return;
+    Object.keys(reminderTimers).forEach(clearReminderTimer);
     state = seed();
     save();
     showView("today");
+    updateInstallBanner();
+    rescheduleAllReminders();
     toast("Demo reset");
   }
 
@@ -1003,9 +1395,9 @@
   $("#btn-reset-2").addEventListener("click", resetDemo);
   $("#btn-info").addEventListener("click", () => {
     openModal("About Trade Desk", `<p><strong>Trade Desk</strong> is a mobile-first demo for a solo SA plumber / electrician / handyman job pipeline.</p>
-      <p>Lead → Quoted → Deposit → Doing → Done → Paid. Tap due processes for guided wizards.</p>
-      <p>Sample: Mokoena Plumbing, Bloemfontein. ZAR demo data in localStorage.</p>
-      <p style="font-size:12px;color:var(--muted)">Not legal or tax advice. Does not send WhatsApp / invoices for you — you Approve and send.</p>`);
+      <p>Lead → Quoted → Deposit → Doing → Done → Paid. ProcessRunner loop: <strong>quote → deposit → job → invoice</strong>.</p>
+      <p>Sample: Mokoena Plumbing, Bloemfontein. Installable PWA · JSON backup in Settings.</p>
+      <p style="font-size:12px;color:var(--muted)">NOT financial, legal or tax advice. Does not send WhatsApp / invoices or move money — you Approve irreversible money steps and send yourself.</p>`);
   });
   $("#modal-close").addEventListener("click", closeModal);
   $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
@@ -1014,6 +1406,211 @@
   $("#btn-add-process-today")?.addEventListener("click", () => openAddProcessModal());
 
   document.getElementById("ob-save") && document.getElementById("ob-save").addEventListener("click", completeOnboarding);
+
+  /* ── backup export / import ── */
+  function collectExportPayload() {
+    return {
+      app: "trade-desk",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      keys: {
+        [STORAGE_KEY]: state,
+      },
+    };
+  }
+
+  function exportJson() {
+    const payload = collectExportPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "trade-desk-backup-" + isoDate(new Date()) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast("Exported JSON backup");
+  }
+
+  function applyImportPayload(data) {
+    if (!data || typeof data !== "object") throw new Error("Invalid file");
+    let next = null;
+    if (data.keys && data.keys[STORAGE_KEY]) next = data.keys[STORAGE_KEY];
+    else if (data.state && typeof data.state === "object") next = data.state;
+    else if (data.processes || data.modules || data.jobs) next = data;
+    else if (data.keys) {
+      const vals = Object.keys(data.keys);
+      if (vals.length === 1) next = data.keys[vals[0]];
+    }
+    if (!next || typeof next !== "object") throw new Error("No Trade Desk state in file");
+    next.modules = Object.assign({}, DEFAULT_MODULES, next.modules || {});
+    next.prefs = Object.assign(defaultPrefs(), next.prefs || {});
+    if (!Array.isArray(next.processes)) next.processes = seedProcesses(startOfDay(new Date()));
+    if (!Array.isArray(next.history)) next.history = [];
+    if (!next.profile) next.profile = { onboarded: false, city: "", purpose: "", updatedAt: null };
+    if (!next.pipeline) next.pipeline = { quoteDone: false, depositDone: false, jobDone: false, invoiceDone: false };
+    if (!next.jobsFilter) next.jobsFilter = "all";
+    Object.keys(reminderTimers).forEach(clearReminderTimer);
+    state = next;
+    save();
+    rescheduleAllReminders();
+    render();
+    updateInstallBanner();
+    toast("Import complete");
+  }
+
+  function importJsonFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        const data = JSON.parse(String(reader.result || ""));
+        applyImportPayload(data);
+      } catch (err) {
+        toast("Import failed — check JSON");
+      }
+    };
+    reader.onerror = function () { toast("Could not read file"); };
+    reader.readAsText(file);
+  }
+
+  /* ── PWA install affordance ── */
+  var deferredInstall = null;
+  function updateInstallBanner() {
+    const banner = $("#install-banner");
+    if (!banner) return;
+    const prefs = getPrefs();
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    if (standalone || prefs.installDismissed) {
+      banner.classList.add("hidden");
+      return;
+    }
+    if (deferredInstall) {
+      banner.classList.remove("hidden");
+      const btn = $("#btn-install");
+      if (btn) btn.textContent = "Install";
+    } else {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS && !prefs.installDismissed) {
+        banner.classList.remove("hidden");
+        const btn = $("#btn-install");
+        if (btn) btn.textContent = "How to";
+      } else {
+        banner.classList.add("hidden");
+      }
+    }
+  }
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    updateInstallBanner();
+  });
+  window.addEventListener("appinstalled", function () {
+    deferredInstall = null;
+    getPrefs().installDismissed = true;
+    save();
+    updateInstallBanner();
+    toast("Trade Desk installed");
+  });
+
+  $("#btn-install") && $("#btn-install").addEventListener("click", function () {
+    if (deferredInstall) {
+      deferredInstall.prompt();
+      deferredInstall.userChoice.then(function (choice) {
+        deferredInstall = null;
+        if (choice && choice.outcome === "accepted") {
+          getPrefs().installDismissed = true;
+          save();
+        }
+        updateInstallBanner();
+      });
+      return;
+    }
+    openModal(
+      "Add to Home Screen",
+      `<p style="font-size:15px;line-height:1.55">On iPhone/iPad: Safari → Share → <strong>Add to Home Screen</strong>.</p>
+       <p style="font-size:15px;line-height:1.55;margin-top:8px">On Android Chrome: menu → <strong>Install app</strong> / Add to Home screen.</p>
+       <p style="font-size:13px;color:var(--muted);margin-top:10px">Offline shell caches index, app.js, styles, and manifest. NOT financial, legal or tax advice.</p>`
+    );
+  });
+  $("#btn-install-dismiss") && $("#btn-install-dismiss").addEventListener("click", function () {
+    getPrefs().installDismissed = true;
+    save();
+    updateInstallBanner();
+  });
+
+  $("#btn-enable-notifs") && $("#btn-enable-notifs").addEventListener("click", function () {
+    getPrefs().notificationsEnabled = true;
+    save();
+    requestNotificationPermission().then(function () {
+      checkDueNotifications();
+      rescheduleAllReminders();
+    });
+  });
+  $("#btn-request-notifs") && $("#btn-request-notifs").addEventListener("click", function () {
+    getPrefs().notificationsEnabled = true;
+    save();
+    requestNotificationPermission().then(function () {
+      checkDueNotifications();
+      rescheduleAllReminders();
+      render();
+    });
+  });
+  $("#pref-notifs") && $("#pref-notifs").addEventListener("change", function (e) {
+    getPrefs().notificationsEnabled = !!e.target.checked;
+    save();
+    if (e.target.checked) {
+      requestNotificationPermission().then(function () { rescheduleAllReminders(); });
+    } else {
+      Object.keys(reminderTimers).forEach(clearReminderTimer);
+      toast("Reminder alerts off — queue still shows in Today");
+    }
+    render();
+  });
+  function saveQuietFromInputs() {
+    const prefs = getPrefs();
+    const qs = $("#quiet-start");
+    const qe = $("#quiet-end");
+    if (qs) {
+      let v = Math.max(0, Math.min(23, Number(qs.value)));
+      if (Number.isNaN(v)) v = 21;
+      prefs.quietStart = v;
+    }
+    if (qe) {
+      let v = Math.max(0, Math.min(23, Number(qe.value)));
+      if (Number.isNaN(v)) v = 7;
+      prefs.quietEnd = v;
+    }
+    save();
+    rescheduleAllReminders();
+    toast("Quiet hours saved");
+    render();
+  }
+  $("#quiet-start") && $("#quiet-start").addEventListener("change", saveQuietFromInputs);
+  $("#quiet-end") && $("#quiet-end").addEventListener("change", saveQuietFromInputs);
+
+  $("#btn-export-json") && $("#btn-export-json").addEventListener("click", exportJson);
+  $("#btn-import-json") && $("#btn-import-json").addEventListener("click", function () {
+    const f = $("#import-file");
+    if (f) f.click();
+  });
+  $("#import-file") && $("#import-file").addEventListener("change", function (e) {
+    const file = e.target.files && e.target.files[0];
+    importJsonFile(file);
+    e.target.value = "";
+  });
+
+  /* boot */
   maybeOnboard();
   render();
+  updateInstallBanner();
+  rescheduleAllReminders();
+  checkDueNotifications();
+  setInterval(function () {
+    checkDueNotifications();
+  }, 5 * 60 * 1000);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") checkDueNotifications();
+  });
 })();
