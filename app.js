@@ -6,25 +6,6 @@
   "use strict";
 
   const STORAGE_KEY = "trade-desk-v4";
-
-  /* PLATFORM_BAR_2026_09_11 */
-  const SCIENCE_TIPS = [
-  {
-    "h": "Deposit-before-parts",
-    "body": "This week: no parts buy until deposit logged. Count cancelled vs completed jobs.",
-    "method": "Method: rule experiment \u00b7 Limit: emergency call-outs differ"
-  },
-  {
-    "h": "Quote speed",
-    "body": "Time from lead to sent quote for 5 jobs. Cut one delay step.",
-    "method": "Method: stopwatch sample \u00b7 Limit: complex jobs skew"
-  },
-  {
-    "h": "Reorder point check",
-    "body": "Raise reorder on your top 2 stockouts by +2 units for a fortnight.",
-    "method": "Method: buffer tweak \u00b7 Limit: cash tied in stock"
-  }
-];
   const PURPOSE_MODULE_PRESETS = {
   "trade": {
     "jobs": true,
@@ -32,63 +13,56 @@
     "quotes": true,
     "customers": true,
     "stock": true,
-    "contacts": true,
-    "science": true
-  },
+    "contacts": true
+      },
   "household": {
     "jobs": false,
     "money": true,
     "quotes": false,
     "customers": false,
     "stock": false,
-    "contacts": true,
-    "science": true
-  },
+    "contacts": true
+      },
   "farm": {
     "jobs": true,
     "money": true,
     "quotes": true,
     "customers": true,
     "stock": true,
-    "contacts": true,
-    "science": true
-  },
+    "contacts": true
+      },
   "rentals": {
     "jobs": true,
     "money": true,
     "quotes": true,
     "customers": true,
     "stock": false,
-    "contacts": true,
-    "science": true
-  },
+    "contacts": true
+      },
   "stokvel": {
     "jobs": false,
     "money": true,
     "quotes": false,
     "customers": false,
     "stock": false,
-    "contacts": true,
-    "science": true
-  },
+    "contacts": true
+      },
   "flood": {
     "jobs": false,
     "money": false,
     "quotes": false,
     "customers": false,
     "stock": false,
-    "contacts": true,
-    "science": true
-  },
+    "contacts": true
+      },
   "decisions": {
     "jobs": true,
     "money": true,
     "quotes": true,
     "customers": true,
     "stock": false,
-    "contacts": false,
-    "science": true
-  }
+    "contacts": false
+      }
 };
 
   const TZ = "Africa/Johannesburg";
@@ -180,7 +154,6 @@
     customers: true,
     stock: true,
     contacts: true,
-    science: true,
   };
 
   function seed() {
@@ -842,7 +815,6 @@
       { id: "customers", mod: "customers", icon: "👥", title: "Customers", meta: "Leads · repeats" },
       { id: "stock", mod: "stock", icon: "📦", title: "Stock / parts", meta: "Reorder points" },
       { id: "contacts", mod: "contacts", icon: "☎", title: "Contacts", meta: "Suppliers · helpers" },
-      { id: "science", mod: "science", icon: "🔬", title: "Science Desk", meta: "Weekly tips · methods" },
       { id: "settings", mod: null, icon: "⚙", title: "Settings", meta: "Modules · reminders · backup" },
     ];
     $("#more-grid").innerHTML = items.filter((i) => !i.mod || state.modules[i.mod]).map((i) => `
@@ -923,7 +895,7 @@
 
     const labels = {
       jobs: "Jobs pipeline", money: "Money / day cash", quotes: "Quotes",
-      customers: "Customers", stock: "Stock / parts", contacts: "Contacts", science: "Science Desk"
+      customers: "Customers", stock: "Stock / parts", contacts: "Contacts"
     };
     $("#module-toggles").innerHTML = Object.keys(DEFAULT_MODULES).map((k) => `
       <label class="toggle-row">
@@ -959,7 +931,6 @@
 
   function render() {
     renderNavVisibility();
-    if (currentView === "science") renderScience();
     renderToday();
     if (state.modules.jobs) renderJobs();
     if (state.modules.money) renderMoney();
@@ -973,13 +944,6 @@
 
   
   /* PLATFORM_BAR_2026_09_11 helpers */
-  function renderScience() {
-    const root = document.getElementById("science-tips");
-    if (!root) return;
-    root.innerHTML = SCIENCE_TIPS.map((t) =>
-      '<div class="science-tip"><h4>' + esc(t.h) + '</h4><p>' + esc(t.body) + '</p><div class="method">' + esc(t.method) + '</div></div>'
-    ).join("");
-  }
 
   function applyPurposeModules(purpose) {
     const preset = PURPOSE_MODULE_PRESETS[purpose];
