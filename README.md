@@ -23,7 +23,6 @@ Shared DNA with [Life Desk](https://esteprinsloo101-web.github.io/life-desk/) an
 | **Customers** | Leads · repeats |
 | **Stock / parts** | Reorder points |
 | **Contacts** | Suppliers · helpers |
-| **Science Desk** | Weekly improve tips (methods + limits) |
 | **Settings** | Modules · quiet hours · notifications · export/import |
 
 ## Process types (ProcessRunner — not checklists)
@@ -86,6 +85,6 @@ Demo / sample data only. **NOT** financial, legal, or tax advice. Trade Desk doe
 
 ## Update 2026-09-11
 
-Platform bar: Science Desk, elderly UI, location+purpose onboarding.
+Platform bar: elderly UI, location+purpose onboarding.
 
 **feat/pwa-reminders-export:** PWA manifest + service worker shell cache (`trade-desk-shell-v1`), install affordance, reminders v1 (notifications + quiet hours + post-Done schedule), JSON export/import backup, stronger quote → deposit → job → invoice ProcessRunner loops with Approve on money steps, day-cash Today queue.
