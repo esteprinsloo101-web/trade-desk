@@ -1,5 +1,5 @@
 /* Trade Desk — shell cache for offline-ish PWA */
-const CACHE = "trade-desk-shell-v1";
+const CACHE = "trade-desk-shell-v2";
 const SHELL = [
   "./",
   "./index.html",

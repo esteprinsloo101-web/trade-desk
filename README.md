@@ -1,16 +1,19 @@
 # Trade Desk
 
-**Trade Desk** is a polished, mobile-first static web demo of a South African **solo trade job pipeline** (plumber / electrician / handyman).
+**Trade Desk** is a mobile-first **free try of the live Gumroad** South African **solo trade job pipeline** (plumber / electrician / handyman).
 
-Sample business: **Mokoena Plumbing · Bloemfontein**. Demo / sample ZAR data only. **NOT** financial, legal, or tax advice.
+Sample business: **Mokoena Plumbing · Bloemfontein**. Sample ZAR data only. **NOT** financial, legal, or tax advice.
+
+**Buy live unlock (Gumroad):** [Trade Desk — R179](https://stofficial.gumroad.com/l/zomth)  
+Also: [Stokvel OS — R99](https://stofficial.gumroad.com/l/ydbgne).
 
 Shared DNA with [Life Desk](https://esteprinsloo101-web.github.io/life-desk/) and [Group Money](https://esteprinsloo101-web.github.io/group-money/): the app **reminds, chases, prepares, closes**; human **Approves** price overrides / irreversible money steps / sends. Installable as a **PWA** (Add to Home Screen) with an offline-ish shell cache.
 
-## Live URL
+## Free try (live)
 
 **https://esteprinsloo101-web.github.io/trade-desk/**
 
-(GitHub Pages from `main`; allow a minute after push for deploy.)
+GitHub Pages from `main` (allow a minute after merge for deploy). Paid unlock: [Gumroad R179](https://stofficial.gumroad.com/l/zomth).
 
 ## Modules
 
@@ -40,7 +43,7 @@ Click outstanding → wizard → Done → set **next due** → item returns to T
 1. Open the live URL or local server in Chrome / Edge / Safari.
 2. Use **Install** / **Add to Home Screen** when the banner appears (or browser menu).
 3. On iOS Safari: Share → **Add to Home Screen**.
-4. The service worker caches the shell: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest` (+ icons). Cache name: **`trade-desk-shell-v1`**. Offline use is **shell-only** — open the app once online first.
+4. The service worker caches the shell: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest` (+ icons). Cache name: **`trade-desk-shell-v2`**. Offline use is **shell-only** — open the app once online first.
 
 ## Reminders v1
 
@@ -76,15 +79,15 @@ Storage key: `trade-desk-v4`
 2. **Today** — confirm job cash loop (quote → deposit → job → invoice), day-cash queue, due processes, reminders.
 3. Run **Quote** → finish → deposit chase appears due; run **Deposit** (Approve log) → job day unlocks; run **Job day** → invoice unlocks; run **Invoice** (Approve issue).
 4. **Settings** — quiet hours; request notifications; **Export JSON** then **Import JSON**.
-5. DevTools → Application → Manifest + Service Worker (`trade-desk-shell-v1`); optional: go offline and confirm shell still loads.
+5. DevTools → Application → Manifest + Service Worker (`trade-desk-shell-v2`); optional: go offline and confirm shell still loads.
 6. `curl -I https://esteprinsloo101-web.github.io/trade-desk/` after Pages deploy from `main`.
 
 ## Disclaimer
 
-Demo / sample data only. **NOT** financial, legal, or tax advice. Trade Desk does **not** send WhatsApp, file VAT, or move money for you. **You Approve** irreversible money steps (deposit log, invoice issue). Confirm real-world compliance yourself.
+Free try / sample data only. **NOT** financial, legal, or tax advice. Trade Desk does **not** send WhatsApp, file VAT, or move money for you. **You Approve** irreversible money steps (deposit log, invoice issue). Confirm real-world compliance yourself.
 
 ## Update 2026-09-11
 
 Platform bar: elderly UI, location+purpose onboarding.
 
-**feat/pwa-reminders-export:** PWA manifest + service worker shell cache (`trade-desk-shell-v1`), install affordance, reminders v1 (notifications + quiet hours + post-Done schedule), JSON export/import backup, stronger quote → deposit → job → invoice ProcessRunner loops with Approve on money steps, day-cash Today queue.
+**feat/pwa-reminders-export:** PWA manifest + service worker shell cache (`trade-desk-shell-v2`), install affordance, reminders v1 (notifications + quiet hours + post-Done schedule), JSON export/import backup, stronger quote → deposit → job → invoice ProcessRunner loops with Approve on money steps, day-cash Today queue.
