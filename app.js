@@ -1319,14 +1319,14 @@
   }
 
   function resetDemo() {
-    if (!confirm("Reset all Trade Desk demo data?")) return;
+    if (!confirm("Reset all Trade Desk sample data?")) return;
     Object.keys(reminderTimers).forEach(clearReminderTimer);
     state = seed();
     save();
     showView("today");
     updateInstallBanner();
     rescheduleAllReminders();
-    toast("Demo reset");
+    toast("Sample data reset");
   }
 
   document.getElementById("bottom-nav").addEventListener("click", (e) => {
@@ -1358,10 +1358,10 @@
   $("#btn-reset").addEventListener("click", resetDemo);
   $("#btn-reset-2").addEventListener("click", resetDemo);
   $("#btn-info").addEventListener("click", () => {
-    openModal("About Trade Desk", `<p><strong>Trade Desk</strong> is a mobile-first demo for a solo SA plumber / electrician / handyman job pipeline.</p>
+    openModal("About Trade Desk", `<p><strong>Trade Desk</strong> is a free try of the live Gumroad solo SA plumber / electrician / handyman job pipeline.</p>
       <p>Lead → Quoted → Deposit → Doing → Done → Paid. ProcessRunner loop: <strong>quote → deposit → job → invoice</strong>.</p>
       <p>Sample: Mokoena Plumbing, Bloemfontein. Installable PWA · JSON backup in Settings.</p>
-      <p style="font-size:12px;color:var(--muted)">NOT financial, legal or tax advice. Does not send WhatsApp / invoices or move money — you Approve irreversible money steps and send yourself.</p>`);
+      <p style="font-size:12px;color:var(--muted)">NOT financial, legal or tax advice. Does not send WhatsApp / invoices or move money — you Approve irreversible money steps and send yourself. Buy live unlock: <a href="https://stofficial.gumroad.com/l/zomth" target="_blank" rel="noopener">Gumroad R179</a>.</p>`);
   });
   $("#modal-close").addEventListener("click", closeModal);
   $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
